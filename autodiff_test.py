@@ -1,5 +1,7 @@
 import autodiff as ad
 import numpy as np
+from math import *
+
 
 def test_identity():
     x2 = ad.Variable(name = "x2")

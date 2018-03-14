@@ -1,4 +1,6 @@
 import numpy as np
+from math import *
+
 
 class Node(object):
     """Node in a computation graph."""
@@ -36,6 +38,26 @@ class Node(object):
             new_node = mul_byconst_op(self, other)
         return new_node
         """TODO: Your code here"""
+    
+    def sin(self):
+        new_node = sin_op(self)
+        return new_node
+
+    def cos(self):
+        new_node = cos_op(self)
+        return new_node
+
+    def tan(self):
+        new_node = tan_op(self)
+        return new_node
+
+    def log(self):
+        new_node = log_op(self)
+        return new_node
+    
+    def exp(self):
+        new_node = exp_op(self)
+        return new_node
 
     # Allow left-hand-side add and multiply.
     __radd__ = __add__
@@ -286,6 +308,397 @@ class OnesLikeOp(Op):
     def gradient(self, node, output_grad):
         return [zeroslike_op(node.inputs[0])]
 
+class SinOp(Op):
+    
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "sin(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return np.sin(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, cos_op(node.inputs[0]))]
+
+
+class CosOp(Op):
+
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "cos(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return np.cos(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [mul_byconst_op(mul_op(output_grad, sin_op(node.inputs[0])), -1)]
+
+class ExpOp(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "exp(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return np.exp(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, exp_op(node.inputs[0]))]
+
+class InvOp(Op): 
+    """Point-wise inverse operation of the input node"""
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "inv(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        assert(input_vals != 0)
+        return 1/input_vals[0]
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, 
+                inv_op(mul_op(node.inputs[0], node.inputs[0])))]
+
+class LogOp(Op): 
+    """Point-wise log operation of the input node"""
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "log(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        assert(input_vals != 0)
+        return np.log(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, inv_op(node.inputs[0]))]
+
+class PowerOp(Op):
+    """Point-wise power operation of the input node"""
+    def __call__(self, node_A, const):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.const_attr = const
+        new_node.name = "power(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return np.power(input_vals[0], node.const_attr)
+ 
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, mul_byconst_op(node.const_attr, power_op(node.inputs[0], node.const_attr-1)))]
+
+class TanOp(Op):
+    """Point-wise tan operation of the input node"""
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "tan(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        assert(input_vals != 0)
+        return np.tan(input_vals[0])
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, power_op(cos_op(node.inputs[0]),-2))]
+        # return [inv_op(mul_op(cos_op(node.inputs[0]),cos_op(node.inputs[0])))]
+
+
+class SigmoidOp(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "sigmoid(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return 1/(1+np.exp(-input_vals[0]))
+
+    def gradient(self, node, output_grad):
+        return [mul_op(sigmoid_op(node.inputs[0]), 
+                        add_byconst_op(mul_byconst_op(node.inputs[0],-1),1))]
+
+class SignOp(Op):
+    """(sign(X))_ij = 1 if X_ij>0 else 0 """
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "sign(%s)" % node_A.name 
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return input_vals[0] > 0
+
+    def gradient(self, node, output_grad):
+        return [zeroslike_op(node.inputs[0])]
+
+class ReLuOp(Op):
+    def __call__(self, node_A):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_A]
+        new_node.name = "relu(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 1)
+        return np.max(input_vals[0], 0)
+
+    def gradient(self, node, output_grad):
+        return mul_op(output_grad, sign_op(node.inputs[0]))
+
+class ConvOp(Op):
+
+    """ Assume no padding and stride = 1
+    Reference: https://becominghuman.ai/back-propagation-in-convolutional-neural-networks-intuition-and-code-714ef1c38199 
+    """
+
+    def __call__(self, node_X, node_W):        
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_X, node_W]
+        new_node.name = "conv(%s)" % node_A.name
+        return new_node
+
+    def compute(self, node, input_vals):
+        (X, W) = input_vals
+
+        # Retrieving dimensions from X's shape
+        (n_H_prev, n_W_prev) = X.shape
+        (f, f) = W.shape
+
+        # Retrieving dimensions from W's shape
+        (f, f) = W.shape        
+        
+        n_H = n_H_prev - f + 1
+        n_W = n_W_prev - f + 1
+        
+        # Initialize the output H with zeros
+        H = np.zeros((n_H, n_W))
+        
+        # Looping over vertical(h) and horizontal(w) axis of output volume
+        for h in range(n_H):
+            for w in range(n_W):
+                x_slice = X[h:h+f, w:w+f]
+                H[h,w] = np.sum(x_slice * W)
+
+        return H
+
+        # Saving information in 'cache' for backprop
+        cache = (X, W)
+
+    def gradient(self, node, output_grad):
+        return [mul_op(output_grad, conv_grad_x_op(node.inputs[0], node.inputs[1])),
+                mul_op(output_grad, conv_grad_w_op(node.inputs[0], node.inputs[1]))]
+
+
+class ConvGradXOp(Op):
+    def __call__(self, node_X, node_W):
+        grad_X = Op.__call__(self)
+        grad_W = Op.__call__(self)
+        grad_X.inputs = [node_A, node_W]
+        grad_X.name = "conv_grad_x(%s,%s)" % (node_X.name, node_W.name)
+        return grad_X
+
+    def compute(self, node, input_vals):
+        (X, W, output_grad) = input_vals
+        # Retrieving dimensions from X's shape
+        (n_H_prev, n_W_prev) = X.shape
+        
+        # Retrieving dimensions from W's shape
+        (f, f) = W.shape
+        
+        # Initializing dX, dW with the correct shapes
+        dX = np.zeros(X.shape)
+        dW = np.zeros(W.shape)
+
+        n_H = n_H_prev - f + 1
+        n_W = n_W_prev - f + 1
+
+        # Looping over vertical(h) and horizontal(w) axis of the output
+        for h in range(n_H):
+            for w in range(n_W):
+                dX[h:h+f, w:w+f] += W
+        
+        return dX
+
+    def gradient(self, node, output_grad):
+        return None 
+
+
+class ConvGradWOp(Op):
+    def __call__(self, node_X, node_W):
+        grad_W = Op.__call__(self)
+        grad_W.inputs = [node_A, node_W]
+        grad_W.name = "conv_grad_w(%s,%s)" % (node_X.name, node_W.name)  
+        return grad_W
+
+    def compute(self, node, input_vals):
+        (X, W, output_grad) = input_vals
+        # Retrieving dimensions from X's shape
+        (n_H_prev, n_W_prev) = X.shape
+        
+        # Retrieving dimensions from W's shape
+        (f, f) = W.shape
+        
+        # Initializing dX, dW with the correct shapes
+        dX = np.zeros(X.shape)
+        dW = np.zeros(W.shape)
+
+        n_H = n_H_prev - f + 1
+        n_W = n_W_prev - f + 1
+            
+        # Looping over vertical(h) and horizontal(w) axis of the output
+        for h in range(n_H):
+            for w in range(n_W):
+                dW += X[h:h+f, w:w+f] * output_grad(h,w)
+
+        return dW
+
+    def gradient(self, node, output_grad):
+        return None 
+
+
+
+class BatchNormOp(Op):
+    """ 
+    Reference: http://cthorey.github.io/backpropagation/
+    """
+
+    def __call__(self, node_X, node_gamma, node_beta, eps=1e-3):
+        new_node = Op.__call__(self)
+        new_node.inputs = [node_X, node_gamma, node_beta]
+        new_node.name = "batch_norm(%s)" % node_A.name
+        new_node.eps = eps
+        return new_node
+
+    def compute(self, node, input_vals):
+        assert(len(input_vals) == 3)
+        (X, gamma, beta) = input_vals
+        epsilon = node.eps
+        mu = 1/N*np.sum(X,axis =0) # Size (X,) 
+        sigma2 = 1/N*np.sum((h-mu)**2,axis=0) # Size (X,) 
+        hatX = (X-mu)*(sigma2+epsilon)**(-1./2.)
+        return hatX
+
+
+    def gradient(self, node, output_grad):
+        return [batch_norm_grad_x_op(node.inputs[0], node.inputs[1], node.inputs[2], output_grad, node.eps), 
+                batch_norm_grad_gamma_op(node.inputs[0], node.inputs[1], node.inputs[2], output_grad, node.eps), 
+                batch_norm_grad_beta_op(node.inputs[0], node.inputs[1], node.inputs[2], output_grad, node.eps)]
+
+
+class BatchNormGradXOp(Op):
+    def __call__(self, node_X, node_gamma, node_beta, output_grad, eps):
+        grad_X = Op.__call__(self)
+        grad_X.inputs = [node_X, node_gamma, node_beta, output_grad]
+        grad_X.name = "batch_norm_grad_x(%s, %s, %s)" % (node_X, node_gamma, node_beta)  
+        self.eps = eps
+        return grad_X
+
+    def compute(self, node, input_vals):
+        (X, gamma, beta, output_grad) = input_vals
+        eps = self.eps
+        # Retrieving dimensions from X's shape
+        mu = 1./N*np.sum(X, axis = 0)
+        var = 1./N*np.sum((X-mu)**2, axis = 0)
+        dX = (1. / N) * gamma * (var + eps)**(-1. / 2.) * (N * output_grad - np.sum(output_grad, axis=0)
+                - (X - mu) * (var + eps)**(-1.0) * np.sum(output_grad * (X - mu), axis=0))
+        return dX
+
+
+    def gradient(self, node, output_grad):
+        return None 
+
+
+class BatchNormGradGammaOp(Op):
+    def __call__(self, node_X, node_gamma, node_beta, output_grad):
+        grad_gamma = Op.__call__(self)
+        grad_gamma.inputs = [node_X, node_gamma, node_beta, output_grad]
+        grad_gamma.name = "batch_norm_grad_gamma(%s, %s, %s)" % (node_X, node_gamma, node_beta)  
+        self.eps = eps        
+        return grad_gamma
+
+    def compute(self, node, input_vals):
+        (X, gamma, beta, output_grad) = input_vals
+        eps = self.eps        
+        # Retrieving dimensions from X's shape
+        mu = 1./N*np.sum(X, axis = 0)
+        var = 1./N*np.sum((X-mu)**2, axis = 0)
+        dgamma = np.sum((X - mu) * (var + eps)**(-1. / 2.) * output_grad, axis=0)
+
+        return dgamma
+
+
+    def gradient(self, node, output_grad):
+        return None 
+
+class BatchNormGradBetaOp(Op):
+    def __call__(self, node_X, node_gamma, node_beta, output_grad):
+        grad_beta = Op.__call__(self)
+        grad_beta.inputs = [node_X, node_gamma, node_beta, output_grad]
+        grad_beta.name = "batch_norm_grad_beta(%s, %s, %s)" % (node_X, node_gamma, node_beta)  
+        self.eps = eps        
+        return grad_beta
+
+    def compute(self, node, input_vals):
+        (X, gamma, beta, output_grad) = input_vals
+        eps = self.eps        
+        # Retrieving dimensions from X's shape
+        mu = 1./N*np.sum(X, axis = 0)
+        var = 1./N*np.sum((X-mu)**2, axis = 0)
+        dbeta = np.sum(output_grad, axis=0)
+
+        return dbeta
+
+    def gradient(self, node, output_grad):
+        return None 
+
+
+class Layer(object):
+    def forward(self, *input_nodes):
+        raise NotImplementedError
+
+class DenseLayer(Layer):
+
+    def __init__(self, in_size, out_size, name='dense', initial='np.random.random_sample'):
+        self.in_size = in_size
+        self.out_size = out_size
+        self.W = Variable(name='W')
+        self.W.val_W = eval(initial)(W)
+        self.name = dense
+
+    def forward(self, node_X):
+        self.inputs = [node_X]
+        self.output = matmul(X, self.W)
+        self.output.name = self.name
+        self.output.op.compute
+
+
+    def forward(self, input_node):
+        output_node =  inv_op(mul_byconst_op(exp_op(mul_byconst_op(input_node, -1)),1))
+        output_node.name = "sigmoid(%s)" % input_node.name
+ 
+
+
+
+
 # Create global singletons of operators.
 add_op = AddOp()
 mul_op = MulOp()
@@ -295,6 +708,28 @@ matmul_op = MatMulOp()
 placeholder_op = PlaceholderOp()
 oneslike_op = OnesLikeOp()
 zeroslike_op = ZerosLikeOp()
+
+power_op = PowerOp()
+cos_op = CosOp()
+sin_op = SinOp()
+tan_op = TanOp()
+log_op = LogOp()
+exp_op = ExpOp()
+inv_op = InvOp()
+sigmoid_op = SigmoidOp()
+
+sign_op = SignOp()
+relu_op = ReLuOp()
+
+conv_op = ConvOp()
+conv_grad_x_op = ConvGradXOp()
+conv_grad_w_op = ConvGradWOp()
+
+batch_norm_op = BatchNormOp()
+batch_norm_grad_x_op = BatchNormGradXOp()
+batch_norm_grad_gamma_op = BatchNormGradGammaOp()
+batch_norm_grad_beta_op = BatchNormGradBetaOp()
+
 
 class Executor:
     """Executor computes values for a given subset of nodes in a computation graph.""" 
