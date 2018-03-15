@@ -794,9 +794,9 @@ def gradients(output_node, node_list):
     
     for cur_node in reverse_topo_order:
 
-        output_grad = zeroslike_op(cur_node)
-        for output_node_grad in node_to_output_grads_list[cur_node]:
-            output_grad = add_op(output_grad, output_node_grad)
+        output_grad = node_to_output_grads_list[cur_node][0]
+        for output_grad_idx in range(1,len(node_to_output_grads_list[cur_node])):
+            output_grad = output_grad + node_to_output_grads_list[cur_node][output_grad_idx]
         node_to_output_grad[cur_node] = output_grad
 
         grad_wrt_inputs = cur_node.op.gradient(cur_node, output_grad)
